@@ -5,11 +5,11 @@ import com.prokoder.altaweel.test.entity.Room;
 import com.prokoder.altaweel.test.repository.BookingRepository;
 import com.prokoder.altaweel.test.repository.RoomRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/bookings")
@@ -28,12 +28,9 @@ public class BookingController {
 
         if (!room.isAvailable()) throw new RuntimeException("Room not available");
 
-        boolean overlap = bookingRepository
+        if (!bookingRepository
                 .findByRoomAndStatusAndCheckOutAfterAndCheckInBefore(
-                        room, Booking.BookingStatus.CONFIRMED, booking.getCheckIn(), booking.getCheckOut())
-                .size() > 0;
-
-        if (overlap) throw new RuntimeException("Room already booked for selected dates");
+                        room, Booking.BookingStatus.CONFIRMED, booking.getCheckIn(), booking.getCheckOut()).isEmpty()) throw new RuntimeException("Room already booked for selected dates");
 
         booking.setStatus(Booking.BookingStatus.CONFIRMED);
         Booking saved = bookingRepository.save(booking);
@@ -47,6 +44,10 @@ public class BookingController {
     public Booking cancelBooking(@PathVariable Long id) {
         Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        if(booking.getStatus().equals(Booking.BookingStatus.CANCELLED))
+            throw new RuntimeException("Booking Already Cancelled");
+
         booking.setStatus(Booking.BookingStatus.CANCELLED);
 
         Room room = booking.getRoom();
@@ -62,8 +63,8 @@ public class BookingController {
     }
 
     @GetMapping()
-    public ResponseEntity<List<Booking>> getBookings() {
-        return new ResponseEntity<>(bookingRepository.findAll(), HttpStatus.OK);
+    public ResponseEntity<Page<Booking>> getBookings(Pageable pageable) {
+        return new ResponseEntity<>(bookingRepository.findAll(pageable), HttpStatus.OK);
     }
 
 }
